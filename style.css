@@ -1,0 +1,13 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+#canvas {
+  display: block;
+  margin : auto;
+}
+
+#spot {
+  box-shadow: 10 10 10 10;
+} 
