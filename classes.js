@@ -775,7 +775,7 @@ function Done(board) {
   if(checkWinner(board)){
     var winner = getWinner(board);
     window.alert("Player " + winner.id + " Won !");
-    board = new Board();
+    BOARD = new Board();
   }
 
   if(board.turn.type === TYPE_AI){
