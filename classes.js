@@ -239,8 +239,8 @@ class Spot {
         circle(this.x, this.y, this.radius);
 
         // DEBUG :: Writing position id's of the boards on them for developing phase
-        fill(0);
-        text(this.id, this.x - 5, this.y + 5)
+        // fill(0);
+        // text(this.id, this.x - 5, this.y + 5)
     }
 
 }
@@ -328,16 +328,35 @@ function countMills(board, player){
 function countPiecesOnBoard(board){
   return board.player1.piecesOnBoard + board.player2.piecesOnBoard;
 }
+
+function hasMoves(board, player){
+  for(var i = 0 ; i < 24 ; i++){
+    if(board.spots[i].owner != null && board.spots[i].owner.id === player.id ){
+      for(var j = 0 ; j < board.spots[i].neighbors.length; j++){
+        if(board.spots[i].neighbors[j].available){
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
   
 function evaluate(board){
-  if(board.player1.piecesOnHand < 1 && board.player1.piecesOnBoard < 3){
-    return 100;
+  if (board.player1.piecesOnHand < 1 &&!hasMoves(board, board.player1)) {
+    return -150;
   }
-  else if(board.player1.piecesOnHand < 1 && board.player2.piecesOnBoard < 3){
+  else if (board.player2.piecesOnHand < 1 && !hasMoves(board, board.player2)) {
+    return 150;
+  }
+  else if(board.player1.piecesOnHand < 1 && board.player1.piecesOnBoard < 3){
     return -100;
   }
+  else if(board.player2.piecesOnHand < 1 && board.player2.piecesOnBoard < 3){
+    return +100;
+  }
   else if( hasMills(board, board.player1) || hasMills(board, board.player2) ){
-    return 5 * (countMills(board, board.player1) - countMills(board, board.player2) );
+    return 30 * (countMills(board, board.player1) - countMills(board, board.player2) );
   }
   else{
     return (board.player1.piecesOnBoard - board.player2.piecesOnBoard);
@@ -348,12 +367,33 @@ function checkWinner(board){
   if(board.player1.piecesOnHand < 1 && board.player1.piecesOnBoard < 3){
     return true;
   }
-  else if(board.player1.piecesOnHand < 1 && board.player2.piecesOnBoard < 3){
+  else if(board.player2.piecesOnHand < 1 && board.player2.piecesOnBoard < 3){
     return true;
   }
-  else{
-    return false;
+  else if (board.player1.piecesOnHand < 1 && !hasMoves(board, board.player1)) {
+    return true;
   }
+  else if (board.player2.piecesOnHand < 1 && !hasMoves(board, board.player2)) {
+    return true;
+  }
+  return false;
+}
+
+function getWinner(board){
+  if(board.player1.piecesOnHand < 1 && board.player1.piecesOnBoard < 3){
+    return board.player2;
+  }
+  else if(board.player2.piecesOnHand < 1 && board.player2.piecesOnBoard < 3){
+    return board.player1;
+  }
+  else if (board.player1.piecesOnHand < 1 && !hasMoves(board, board.player1)) {
+    return board.player2;
+  }
+  else if (board.player2.piecesOnHand < 1 && !hasMoves(board, board.player2)) {
+    return board.player1;
+  }
+
+  return null; 
 }
 
 function minimax(board, depth, isMaximizer, alpha, beta){
@@ -706,10 +746,10 @@ function optimizer(board){
   var numOfPieces = countPiecesOnBoard(board);
 
   if(numOfPieces > 17){
-    depth = 9; 
+    depth = 8; 
   }
   else if(numOfPieces > 14){
-    depth = 8; 
+    depth = 7; 
   }
   else if(numOfPieces > 11){
     depth = 6; 
@@ -727,10 +767,17 @@ function optimizer(board){
   else {
     return bestMove(board, depth, false);
   }
-  
+
 }
 
 function Done(board) {
+
+  if(checkWinner(board)){
+    var winner = getWinner(board);
+    window.alert("Player " + winner.id + " Won !");
+    board = new Board();
+  }
+
   if(board.turn.type === TYPE_AI){
     var move = optimizer(board);
     var bestindex = move[0];
