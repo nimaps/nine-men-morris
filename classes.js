@@ -15,6 +15,7 @@ const MIDDLE_HOUSES = [1, 4, 7, 9, 10, 11, 12, 13, 14, 16, 19, 22];
 function createSpots(){
 
   var spots = [];
+
   spots.push(new Spot(0, 100, 100));
   spots.push(new Spot(1, 400, 100));
   spots.push(new Spot(2, 700, 100));
@@ -236,6 +237,8 @@ class Spot {
             fill(this.color);
         } 
         circle(this.x, this.y, this.radius);
+
+        // DEBUG :: Writing position id's of the boards on them for developing phase
         fill(0);
         text(this.id, this.x - 5, this.y + 5)
     }
@@ -320,6 +323,10 @@ function countMills(board, player){
     }
   }
   return count;
+}
+
+function countPiecesOnBoard(board){
+  return board.player1.piecesOnBoard + board.player2.piecesOnBoard;
 }
   
 function evaluate(board){
@@ -410,6 +417,7 @@ function minimax(board, depth, isMaximizer, alpha, beta){
         var evaluation = minimax(board, depth - 1, maximizer, alpha, beta);
         maxScore = Math.max(evaluation, maxScore);
 
+
         switch(flag){
           case 1:
             changeTurn(board);
@@ -456,7 +464,7 @@ function minimax(board, depth, isMaximizer, alpha, beta){
       }
   
     }
-    return maxScore; 
+    return  maxScore;
   }
   else{
     var minScore = +Infinity;
@@ -496,7 +504,6 @@ function minimax(board, depth, isMaximizer, alpha, beta){
         else{
           changeTurn(board);
           flag = 4;
-          
         }
       }
       else if(!board.millMove && board.turn.piecesOnHand < 1 && board.selected == null && board.spots[i].owner != null && board.spots[i].owner.id == board.turn.id ){
@@ -563,16 +570,20 @@ function minimax(board, depth, isMaximizer, alpha, beta){
 }
 
 
-function bestMove(board, depth){
+function bestMove(board, depth, firstMaximizer){
 
-  var bestScore = -Infinity;
+  var bestScore = +Infinity;
+  if(firstMaximizer){
+    bestScore = -Infinity;
+  }
   var bestMove;
-  var jump = -1;
+
+  var bestflag;
 
   for( var i = 0 ; i < 24 ; i++){
     var flag = 0;
     var currentlyselected = board.selected;
-    var tempjump;
+
     if(board.millMove && board.spots[i].owner != null && board.spots[i].owner.id == board.waiting.id ){
       empty(board.spots[i]);
       board.millMove = false;
@@ -606,7 +617,6 @@ function bestMove(board, depth){
         changeTurn(board);
         flag = 4;
       }
-      tempjump = board.spots[i].id;
     }
     else if(!board.millMove && board.turn.piecesOnHand < 1 && board.selected == null && board.spots[i].owner != null && board.spots[i].owner.id == board.turn.id ){
       board.selected = board.spots[i];
@@ -615,18 +625,36 @@ function bestMove(board, depth){
     }
 
     if(flag != 0){
-      var maximizing = true;
 
-      if(board.turn.id === board.player2.id){
-        maximizing = false;
-      }
-      
-      var evaluation = minimax(board, depth, maximizing, -Infinity, +Infinity);
-      if(evaluation > bestScore){
-        bestScore = evaluation;
-        bestMove = i;
-      }
 
+      if(firstMaximizer){
+        var maximizing = true;
+
+        if(board.turn.id === board.player2.id){
+          maximizing = false;
+        }
+        
+        var evaluation = minimax(board, depth, maximizing, -Infinity, +Infinity);
+        if(evaluation > bestScore){
+          bestScore = evaluation;
+          bestMove = i;
+          bestflag = flag;
+        }
+      }
+      else{
+        var maximizing = false;
+
+        if(board.turn.id === board.player1.id){
+          maximizing = true;
+        }
+        
+        var evaluation = minimax(board, depth, maximizing, -Infinity, +Infinity);
+        if(evaluation < bestScore){
+          bestScore = evaluation;
+          bestMove = i;
+          bestflag = flag;
+        }
+      }
       switch(flag){
         case 1:
           changeTurn(board);
@@ -668,7 +696,90 @@ function bestMove(board, depth){
     }
 
   }
-  return [bestMove, bestScore];
+  return [bestMove, bestflag];
+}
+
+function optimizer(board){
+
+  var depth;
+
+  var numOfPieces = countPiecesOnBoard(board);
+
+  if(numOfPieces > 17){
+    depth = 9; 
+  }
+  else if(numOfPieces > 14){
+    depth = 8; 
+  }
+  else if(numOfPieces > 11){
+    depth = 6; 
+  }
+  else if(numOfPieces > 8){
+    depth = 5; 
+  }
+  else{
+    depth = 4;
+  }
+
+  if(board.turn.id === board.player1.id){
+    return bestMove(board, depth, true);
+  }
+  else {
+    return bestMove(board, depth, false);
+  }
+  
+}
+
+function Done(board) {
+  if(board.turn.type === TYPE_AI){
+    var move = optimizer(board);
+    var bestindex = move[0];
+    var flag = move[1];
+    switch(flag){
+      case 1:
+        empty(board.spots[bestindex]);
+        board.millMove = false;
+        board.waiting.piecesOnBoard--;
+        changeTurn(board);
+        Done(board);
+        break;
+      case 2:
+      case 3:
+        own(board.spots[bestindex], board.turn);
+        board.turn.piecesOnBoard++;
+        board.turn.piecesOnHand--;
+        if(madeMill(board.spots[bestindex])){
+          board.millMove = true;
+        }
+        else{
+          changeTurn(board);
+        }
+        Done(board);
+        break;
+      case 4:
+      case 5:
+        empty(board.selected);
+        own(board.spots[bestindex], board.turn);
+        board.selected.isSelected = false;
+        board.selected = null;
+        if( madeMill(board.spots[bestindex])){
+          board.millMove = true;
+        }
+        else{
+          changeTurn(board);
+        }
+        Done(board);
+        break;
+      case 6:
+        board.selected = board.spots[bestindex];
+        board.selected.isSelected = true;
+        Done(board);
+        break;
+    }
+
+
+
+  }
 }
  
 function clicked(board) {
@@ -680,6 +791,7 @@ function clicked(board) {
           board.millMove = false;
           board.waiting.piecesOnBoard--;
           changeTurn(board);
+          Done(board);
         }
         else if(!board.millMove && board.turn.piecesOnHand > 0 && board.spots[i].available){
           own(board.spots[i], board.turn);
@@ -690,6 +802,7 @@ function clicked(board) {
           }
           else{
             changeTurn(board);
+            Done(board);
           }
         }
         else if(!board.millMove && board.turn.piecesOnHand < 1 && board.selected != null && board.spots[i].available && areNeighbors(board.selected, board.spots[i]) ){
@@ -702,6 +815,7 @@ function clicked(board) {
           }
           else{
             changeTurn(board);
+            Done(board);
           }
         }
         else if(!board.millMove && board.turn.piecesOnHand < 1 && board.spots[i].owner != null && board.spots[i].owner.id == board.turn.id ){
@@ -727,7 +841,7 @@ class Board {
     constructor(){
         this.spots = createSpots();
         this.player1 = new Player(1, COLOR_BLUE, TYPE_HUMAN);
-        this.player2 = new Player(2, COLOR_GREEN, TYPE_HUMAN);
+        this.player2 = new Player(2, COLOR_GREEN, TYPE_AI);
         this.turn = this.player1;
         this.waiting = this.player2;
         this.millMove = false;
